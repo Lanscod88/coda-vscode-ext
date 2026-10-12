@@ -9,8 +9,11 @@
         select, textarea, button { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); padding: 6px; border-radius: 4px; font-family: inherit; }
         select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); }
         textarea { resize: vertical; height: 70px; margin-top: 5px; }
+        
+        /* 按钮样式与禁用状态 */
         button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; font-weight: bold; margin-top: 5px; }
-        button:hover { background: var(--vscode-button-hoverBackground); }
+        button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
         
         /* Loading 样式 */
         #loadingIndicator { display: none; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); font-size: 12px; margin: 8px 0; }
@@ -19,7 +22,7 @@
 
         #chat-container { flex: 1; overflow-y: auto; border: 1px solid var(--vscode-panel-border); padding: 8px; margin-top: 5px; border-radius: 4px; background: var(--vscode-textCodeBlock-background); font-size: 13px; line-height: 1.4; }
         
-        /* 用户提问样式（普通文本） */
+        /* 用户提问样式 */
         .user-msg { margin-bottom: 6px; white-space: pre-wrap; word-break: break-all; color: var(--vscode-textLink-activeForeground); font-weight: bold; }
 
         /* 可折叠的模型响应卡片样式 */
@@ -71,7 +74,9 @@
         sendBtn.addEventListener('click', sendMessage);
         promptInput.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {
-                sendMessage();
+                if (!sendBtn.disabled) {
+                    sendMessage();
+                }
             }
         });
 
@@ -80,10 +85,13 @@
             const model = modelSelect.value;
             if (!prompt) return;
 
-            // 1. 用户提问保持普通文本展示
+            // 1. 发送时禁用按钮，防止重复提交
+            sendBtn.disabled = true;
+
+            // 2. 用户提问保持普通文本展示
             responseArea.innerHTML += '<div class="message user-msg">用户: ' + escapeHtml(prompt) + '</div>';
             
-            // 2. 将模型的输出内容包裹在可折叠的 details 容器中
+            // 3. 将模型的输出内容包裹在可折叠的 details 容器中
             responseArea.innerHTML += 
                 '<details class="response-box" open>' +
                     '<summary class="response-summary">模型回复 (' + escapeHtml(model) + ')</summary>' +
@@ -133,6 +141,9 @@
                     break;
                 case 'streamEnd':
                     loadingIndicator.style.display = 'none';
+                    // 4. 响应结束后解除按钮禁用状态
+                    sendBtn.disabled = false;
+
                     const currEnd = document.getElementById('current-response');
                     if (currEnd) currEnd.removeAttribute('id');
                     break;
