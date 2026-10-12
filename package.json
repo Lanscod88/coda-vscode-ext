@@ -1,0 +1,58 @@
+{
+  "name": "ollama-vscode-assistant",
+  "displayName": "Ollama Local AI Assistant",
+  "description": "VS Code extension for local Ollama models with thinking process streaming",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "activationEvents": [
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ollama-sidebar",
+          "title": "Ollama AI",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "ollama-sidebar": [
+        {
+          "type": "webview",
+          "id": "ollamaChatView",
+          "name": "Ollama Chat",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Ollama Assistant",
+      "properties": {
+        "ollamaAssistant.host": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama server URL"
+        },
+        "ollamaAssistant.defaultModel": {
+          "type": "string",
+          "default": "deepseek-r1:32b",
+          "description": "Default model to use"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.140.0",
+    "typescript": "^5.0.0"
+  }
+}

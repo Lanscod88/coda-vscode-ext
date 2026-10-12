@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: var(--vscode-font-family); padding: 10px; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); margin: 0; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+        .control-group { margin-bottom: 10px; }
+        select, textarea, button { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); padding: 6px; border-radius: 4px; font-family: inherit; }
+        select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); }
+        textarea { resize: vertical; height: 70px; margin-top: 5px; }
+        button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        button:hover { background: var(--vscode-button-hoverBackground); }
+        #chat-container { flex: 1; overflow-y: auto; border: 1px solid var(--vscode-panel-border); padding: 8px; margin-top: 10px; border-radius: 4px; background: var(--vscode-textCodeBlock-background); font-size: 13px; line-height: 1.4; }
+        .message { margin-bottom: 12px; white-space: pre-wrap; word-break: break-all; }
+        .user-msg { color: var(--vscode-textLink-activeForeground); font-weight: bold; }
+        .thinking { color: var(--vscode-descriptionForeground); border-left: 2px solid var(--vscode-textBlockQuote-border); padding-left: 6px; margin: 4px 0; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="control-group">
+        <label for="modelSelect">选择模型:</label>
+        <select id="modelSelect">
+            <option>正在获取模型列表...</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <textarea id="promptInput" placeholder="输入你想编写的代码或问题... (Ctrl+Enter 发送)"></textarea>
+        <button id="sendBtn">发送</button>
+    </div>
+    <div id="chat-container">
+        <div id="responseArea"></div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const modelSelect = document.getElementById('modelSelect');
+        const promptInput = document.getElementById('promptInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const responseArea = document.getElementById('responseArea');
+
+        // 页面加载完成后自动触发获取模型列表
+        window.addEventListener('load', () => {
+            vscode.postMessage({ type: 'getModels' });
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const prompt = promptInput.value.trim();
+            const model = modelSelect.value;
+            if (!prompt) return;
+
+            responseArea.innerHTML += '<div class="message user-msg">用户: ' + escapeHtml(prompt) + '</div>';
+            responseArea.innerHTML += '<div class="message" id="current-response"></div>';
+            promptInput.value = '';
+            
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+
+            vscode.postMessage({ type: 'sendMessage', prompt, model });
+        }
+
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.type) {
+                case 'modelList':
+                    modelSelect.innerHTML = '';
+                    if (!message.models || message.models.length === 0) {
+                        modelSelect.innerHTML = '<option>未检测到本地模型</option>';
+                        return;
+                    }
+                    message.models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m;
+                        opt.textContent = m;
+                        modelSelect.appendChild(opt);
+                    });
+                    break;
+                case 'streamChunk':
+                    const curr = document.getElementById('current-response');
+                    if (curr) {
+                        curr.textContent += message.chunk;
+                        
+                        let html = curr.textContent;
+                        html = html.split('<think>').join('<div class="thinking">思考中...<br>');
+                        html = html.split('</think>').join('</div><hr>');
+                        curr.innerHTML = html;
+
+                        const container = document.getElementById('chat-container');
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    break;
+                case 'streamEnd':
+                    const currEnd = document.getElementById('current-response');
+                    if (currEnd) currEnd.removeAttribute('id');
+                    break;
+            }
+        });
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
