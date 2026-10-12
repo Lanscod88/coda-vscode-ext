@@ -30,7 +30,6 @@ class OllamaChatViewProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
-        // 加载外部 HTML 文件内容
         webviewView.webview.html = this._getHtmlForWebview();
 
         webviewView.webview.onDidReceiveMessage(async (data: any) => {
@@ -132,7 +131,7 @@ class OllamaChatViewProvider implements vscode.WebviewViewProvider {
                         const json = JSON.parse(trimmed);
                         const messageContent = json.message?.content || '';
                         if (messageContent) {
-                            outputChannel.appendLine(`[Chat] 收到片段: "${messageContent}"`);
+                            // 已移除单条 chunk 日志打印，提升性能与日志整洁度
                             this._view?.webview.postMessage({
                                 type: 'streamChunk',
                                 chunk: messageContent
@@ -157,7 +156,7 @@ class OllamaChatViewProvider implements vscode.WebviewViewProvider {
                 } catch (e) {}
             }
 
-            outputChannel.appendLine('[Chat] Ollama 响应流结束');
+            outputChannel.appendLine('[Chat] Ollama 响应流结束'); // 只保留响应结束打印
             this._view?.webview.postMessage({ type: 'streamEnd' });
 
         } catch (error: any) {
@@ -168,7 +167,6 @@ class OllamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(): string {
-        // 通过 fs 同步读取 resources/webview.html 文件内容
         const htmlPath = path.join(this._extensionUri.fsPath, 'resources', 'webview.html');
         try {
             return fs.readFileSync(htmlPath, 'utf8');
