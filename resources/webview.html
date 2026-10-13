@@ -15,7 +15,6 @@
         box-sizing: border-box;
       }
 
-      /* 视图容器 */
       .view-section {
         display: none;
         flex: 1;
@@ -26,7 +25,6 @@
         display: flex;
       }
 
-      /* 表单与控件样式 */
       .control-group {
         margin-bottom: 8px;
       }
@@ -56,6 +54,12 @@
         font-family: inherit;
         font-size: 12px;
       }
+      select:disabled,
+      input:disabled,
+      textarea:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
       select:focus,
       input:focus,
       textarea:focus {
@@ -63,7 +67,7 @@
       }
       textarea {
         resize: vertical;
-        height: 70px;
+        height: 60px;
         margin-top: 2px;
       }
 
@@ -99,6 +103,116 @@
         background: var(--vscode-button-secondaryHoverBackground);
       }
 
+      .top-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+      }
+      .toolbar-icons {
+        display: flex;
+        gap: 6px;
+      }
+      .icon-btn {
+        background: none;
+        border: none;
+        color: var(--vscode-foreground);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+      .icon-btn:hover {
+        background: var(--vscode-toolbar-hoverBackground);
+      }
+
+      .customize-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+      .tab-btn {
+        flex: 1;
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: none;
+        padding: 4px;
+        cursor: pointer;
+        border-radius: 3px;
+        font-weight: bold;
+      }
+      .tab-btn.active {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      .collab-panel {
+        border: 1px solid var(--vscode-panel-border);
+        padding: 6px;
+        border-radius: 4px;
+        background: var(--vscode-editorWidget-background);
+        margin-bottom: 8px;
+      }
+      .collab-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: bold;
+        margin-bottom: 4px;
+        cursor: pointer;
+      }
+      .collab-sub {
+        display: none;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed var(--vscode-panel-border);
+      }
+      .collab-sub.active {
+        display: block;
+      }
+
+      .skill-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--vscode-input-background);
+        padding: 4px 8px;
+        border-radius: 3px;
+        margin-bottom: 4px;
+        font-size: 12px;
+      }
+
+      .action-buttons {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .action-buttons button {
+        padding: 4px 10px;
+        font-size: 11px;
+        cursor: pointer;
+        border-radius: 3px;
+        border: none;
+        font-weight: bold;
+      }
+      .btn-accept {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+      }
+      .btn-skip {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+      }
+
       .history-toolbar {
         display: flex;
         justify-content: space-between;
@@ -117,7 +231,6 @@
         margin-bottom: 0 !important;
       }
 
-      /* Settings 标题与切换控制 */
       .settings-header {
         font-size: 13px;
         font-weight: bold;
@@ -129,7 +242,6 @@
         align-items: center;
       }
 
-      /* Loading 样式 */
       #loadingIndicator {
         display: none;
         align-items: center;
@@ -246,6 +358,16 @@
   <body>
     <!-- 1. 聊天主界面 -->
     <div id="chatView" class="view-section active">
+      <div class="top-toolbar">
+        <span style="font-weight: bold; font-size: 12px">本地 AI 编程助手</span>
+        <div class="toolbar-icons">
+          <button id="openCustomizeBtn" class="icon-btn" title="Customize (Skills & MCP)">
+            🛠️
+          </button>
+          <button id="openSettingsBtn" class="icon-btn" title="Settings">⚙️</button>
+        </div>
+      </div>
+
       <div class="control-group">
         <label for="modelSelect">选择模型:</label>
         <div class="row">
@@ -255,10 +377,40 @@
           <button id="refreshBtn" class="btn-refresh" title="刷新模型列表">🔄</button>
         </div>
       </div>
+
+      <!-- 多模型协作配置面板 -->
+      <div class="collab-panel">
+        <label class="collab-row">
+          <input type="checkbox" id="collabCheckbox" /> 启用多模型协作 (架构规划 + 代码实现)
+        </label>
+        <div id="collabSubPanel" class="collab-sub">
+          <div class="control-group" style="margin-bottom: 4px">
+            <label>1. 架构设计模型:</label>
+            <select id="designModelSelect" disabled>
+              <option>加载中...</option>
+            </select>
+          </div>
+          <div class="control-group" style="margin-bottom: 0">
+            <label>2. 代码实现模型:</label>
+            <select id="implModelSelect" disabled>
+              <option>加载中...</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 激活的 Skills 选择 -->
+      <div class="control-group" style="margin-bottom: 6px">
+        <label for="activeSkillSelect">挂载自定义 Skill (可选):</label>
+        <select id="activeSkillSelect">
+          <option value="">-- 不使用 Skill --</option>
+        </select>
+      </div>
+
       <div class="control-group">
         <textarea
           id="promptInput"
-          placeholder="输入你想编写的代码或问题... (Ctrl+Enter 发送)"
+          placeholder="输入需求、提问或代码审查指令... (Ctrl+Enter 发送)"
         ></textarea>
         <button id="sendBtn" class="primary-btn">发送</button>
       </div>
@@ -282,39 +434,89 @@
       </div>
     </div>
 
-    <!-- 2. 设置界面 -->
+    <!-- 2. Customize 界面 (Skills & MCP) -->
+    <div id="customizeView" class="view-section">
+      <div class="settings-header">
+        <span>Customize (Skills & MCP)</span>
+        <button id="closeCustomizeBtn" class="btn-refresh" style="padding: 2px 6px">
+          返回聊天
+        </button>
+      </div>
+
+      <div class="customize-tabs">
+        <button class="tab-btn active" data-tab="skillsTab">Skills</button>
+        <button class="tab-btn" data-tab="mcpTab">MCP 接口</button>
+      </div>
+
+      <!-- Skills Tab -->
+      <div id="skillsTab" class="tab-content active">
+        <div class="control-group">
+          <label>新建自定义 Skill</label>
+          <input
+            type="text"
+            id="newSkillName"
+            placeholder="Skill 名称 (例如: react-best-practices)"
+            style="margin-bottom: 4px"
+          />
+          <textarea
+            id="newSkillContent"
+            placeholder="输入该 Skill 的具体规则、指令或模板内容..."
+            style="height: 60px"
+          ></textarea>
+          <button id="saveSkillBtn" class="primary-btn">保存新 Skill</button>
+        </div>
+        <div class="control-group" style="margin-top: 10px">
+          <label>已安装的 Skills:</label>
+          <div id="skillsListContainer" style="max-height: 180px; overflow-y: auto"></div>
+        </div>
+      </div>
+
+      <!-- MCP Tab -->
+      <div id="mcpTab" class="tab-content">
+        <div class="control-group">
+          <label>MCP 服务器与工具注册状态</label>
+          <p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0">
+            通过 MCP 协议，AI 助手已自动挂载以下本地工作区管理工具：
+          </p>
+          <div class="skill-item">
+            <span>📁 list_directory (目录浏览)</span><span style="color: #4caf50">已激活</span>
+          </div>
+          <div class="skill-item">
+            <span>📖 read_file (文件读取)</span><span style="color: #4caf50">已激活</span>
+          </div>
+          <div class="skill-item">
+            <span>✍️ write_file (文件写入/创建)</span><span style="color: #4caf50">已激活</span>
+          </div>
+          <div class="skill-item">
+            <span>🗑️ delete_file (文件删除)</span><span style="color: #4caf50">已激活</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 设置界面 -->
     <div id="settingsView" class="view-section">
       <div class="settings-header">
         <span>本地 / 内网 AI 服务配置</span>
-        <button id="closeSettingsBtn" class="btn-refresh" style="padding: 2px 6px">
-          关闭配置页
-        </button>
+        <button id="closeSettingsBtn" class="btn-refresh" style="padding: 2px 6px">返回聊天</button>
       </div>
 
       <div class="control-group">
         <label>服务协议 (Protocol)</label>
         <select id="protocolSelect">
           <option value="ollama">Ollama 协议原生</option>
-          <option value="openai">OpenAI 兼容协议 (LM Studio, vLLM, llama.cpp 等)</option>
+          <option value="openai">OpenAI 兼容协议 (LM Studio, vLLM 等)</option>
         </select>
       </div>
 
       <div class="control-group">
         <label>服务地址(Base URL)</label>
-        <input
-          type="text"
-          id="baseUrlInput"
-          placeholder="例如: http://127.0.0.1:11434 或 http://127.0.0.1:1234/v1"
-        />
+        <input type="text" id="baseUrlInput" placeholder="例如: http://127.0.0.1:11434" />
       </div>
 
-      <div class="control-group" id="apiKeyContainer">
-        <label>密钥(API Key,内网需要鉴权时填写)</label>
-        <input
-          type="password"
-          id="apiKeyInput"
-          placeholder="若服务器设置了 Bearer Token 请在此填写"
-        />
+      <div class="control-group">
+        <label>密钥(API Key)</label>
+        <input type="password" id="apiKeyInput" placeholder="若服务器需鉴权请填写" />
       </div>
 
       <div class="control-group">
@@ -325,7 +527,6 @@
           <option value="32k" selected>32K</option>
           <option value="64k">64K</option>
           <option value="128k">128K</option>
-          <option value="256k">256K</option>
         </select>
       </div>
 
@@ -336,7 +537,12 @@
       const vscode = acquireVsCodeApi();
 
       const chatView = document.getElementById('chatView');
+      const customizeView = document.getElementById('customizeView');
       const settingsView = document.getElementById('settingsView');
+
+      const openCustomizeBtn = document.getElementById('openCustomizeBtn');
+      const closeCustomizeBtn = document.getElementById('closeCustomizeBtn');
+      const openSettingsBtn = document.getElementById('openSettingsBtn');
       const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 
       const protocolSelect = document.getElementById('protocolSelect');
@@ -354,32 +560,60 @@
       const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
       const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
-      let isSettingsOpen = false;
+      const collabCheckbox = document.getElementById('collabCheckbox');
+      const collabSubPanel = document.getElementById('collabSubPanel');
+      const designModelSelect = document.getElementById('designModelSelect');
+      const implModelSelect = document.getElementById('implModelSelect');
+      const activeSkillSelect = document.getElementById('activeSkillSelect');
 
-      function toggleSettings(open) {
-        isSettingsOpen = typeof open === 'boolean' ? open : !isSettingsOpen;
-        if (isSettingsOpen) {
-          chatView.classList.remove('active');
-          settingsView.classList.add('active');
-          vscode.postMessage({type: 'getSettings'});
-        } else {
-          settingsView.classList.remove('active');
+      const saveSkillBtn = document.getElementById('saveSkillBtn');
+      const newSkillName = document.getElementById('newSkillName');
+      const newSkillContent = document.getElementById('newSkillContent');
+      const skillsListContainer = document.getElementById('skillsListContainer');
+
+      function switchView(viewName) {
+        chatView.classList.remove('active');
+        customizeView.classList.remove('active');
+        settingsView.classList.remove('active');
+
+        if (viewName === 'chat') {
           chatView.classList.add('active');
           vscode.postMessage({type: 'getModels'});
+        } else if (viewName === 'customize') {
+          customizeView.classList.add('active');
+          vscode.postMessage({type: 'getSkills'});
+        } else if (viewName === 'settings') {
+          settingsView.classList.add('active');
+          vscode.postMessage({type: 'getSettings'});
         }
       }
 
-      closeSettingsBtn.addEventListener('click', () => toggleSettings(false));
+      openCustomizeBtn.addEventListener('click', () => switchView('customize'));
+      closeCustomizeBtn.addEventListener('click', () => switchView('chat'));
+      openSettingsBtn.addEventListener('click', () => switchView('settings'));
+      closeSettingsBtn.addEventListener('click', () => switchView('chat'));
 
-      protocolSelect.addEventListener('change', () => {
-        if (protocolSelect.value === 'ollama') {
-          if (!baseUrlInput.value || baseUrlInput.value.includes('1234')) {
-            baseUrlInput.value = 'http://127.0.0.1:11434';
-          }
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+      });
+
+      collabCheckbox.addEventListener('change', () => {
+        const active = collabCheckbox.checked;
+        if (active) {
+          collabSubPanel.classList.add('active');
+          designModelSelect.disabled = false;
+          implModelSelect.disabled = false;
+          sendBtn.textContent = '🚀 开始协同开发';
         } else {
-          if (!baseUrlInput.value || baseUrlInput.value.includes('11434')) {
-            baseUrlInput.value = 'http://127.0.0.1:1234/v1';
-          }
+          collabSubPanel.classList.remove('active');
+          designModelSelect.disabled = true;
+          implModelSelect.disabled = true;
+          sendBtn.textContent = '发送';
         }
       });
 
@@ -387,6 +621,7 @@
         vscode.postMessage({type: 'getSettings'});
         vscode.postMessage({type: 'getModels'});
         vscode.postMessage({type: 'getHistory'});
+        vscode.postMessage({type: 'getSkills'});
       });
 
       refreshBtn.addEventListener('click', () => {
@@ -404,6 +639,15 @@
         vscode.postMessage({type: 'saveSettings', settings});
       });
 
+      saveSkillBtn.addEventListener('click', () => {
+        const name = newSkillName.value.trim();
+        const content = newSkillContent.value.trim();
+        if (!name || !content) return;
+        vscode.postMessage({type: 'saveSkill', skill: {name, content}});
+        newSkillName.value = '';
+        newSkillContent.value = '';
+      });
+
       sendBtn.addEventListener('click', sendMessage);
       promptInput.addEventListener('keydown', e => {
         if (e.ctrlKey && e.key === 'Enter') {
@@ -411,7 +655,6 @@
         }
       });
 
-      // 全选/全取消逻辑
       selectAllCheckbox.addEventListener('change', () => {
         const checkboxes = document.querySelectorAll('.history-checkbox');
         checkboxes.forEach(cb => {
@@ -429,20 +672,34 @@
       function sendMessage() {
         const prompt = promptInput.value.trim();
         const model = modelSelect.value;
+        const collabEnabled = collabCheckbox.checked;
+        const collabConfig = {
+          designModel: designModelSelect.value,
+          implModel: implModelSelect.value,
+        };
+        const activeSkill = activeSkillSelect.value;
+
         if (!prompt || !model) return;
 
         sendBtn.disabled = true;
         promptInput.value = '';
         loadingIndicator.style.display = 'flex';
 
-        vscode.postMessage({type: 'sendMessage', prompt, model});
+        vscode.postMessage({
+          type: 'sendMessage',
+          prompt,
+          model,
+          collabEnabled,
+          collabConfig,
+          activeSkill,
+        });
       }
 
       window.addEventListener('message', event => {
         const message = event.data;
         switch (message.type) {
           case 'toggleSettingsView':
-            toggleSettings();
+            switchView('settings');
             break;
           case 'loadSettings':
             const s = message.settings;
@@ -452,66 +709,148 @@
             numCtxSelect.value = s.numCtx || '32k';
             break;
           case 'settingsSaved':
-            toggleSettings(false);
+            switchView('chat');
             break;
           case 'modelList':
-            modelSelect.innerHTML = '';
-            if (!message.models || message.models.length === 0) {
-              modelSelect.innerHTML = '<option>未检测到可用模型</option>';
-              return;
-            }
-            message.models.forEach(m => {
-              const opt = document.createElement('option');
-              opt.value = m;
-              opt.textContent = m;
-              if (message.selectedModel && m === message.selectedModel) {
-                opt.selected = true;
-              }
-              modelSelect.appendChild(opt);
-            });
+            populateModels(message.models, message.selectedModel);
+            break;
+          case 'renderSkills':
+            renderSkillsList(message.skills);
             break;
           case 'renderHistory':
             renderHistoryList(message.history);
             break;
           case 'streamChunk':
             loadingIndicator.style.display = 'none';
-            const curr = document.getElementById('current-response');
+            // 使用 .active-streaming 精准定位到最后一条正在流式输出的回复，避免插到中间
+            const curr = document.querySelector('.active-streaming');
             if (curr) {
               curr.textContent += message.chunk;
               let html = curr.textContent;
               html = html.split('<think>').join('<div class="thinking">思考中...<br>');
               html = html.split('</think>').join('</div><hr>');
               curr.innerHTML = html;
-
               const container = document.getElementById('chat-container');
               container.scrollTop = container.scrollHeight;
+            }
+            break;
+          case 'showReviewAction':
+            loadingIndicator.style.display = 'none';
+            // 找到最后一条未完成项，为其追加审查按钮
+            const lastContentDiv = document.querySelector('.active-streaming');
+            if (lastContentDiv) {
+              showReviewButtons(
+                message.historyId,
+                message.reviewText,
+                message.implModel,
+                lastContentDiv,
+              );
             }
             break;
           case 'streamEnd':
             loadingIndicator.style.display = 'none';
             sendBtn.disabled = false;
-            const box = document.getElementById('current-response-box');
-            if (box) {
-              box.classList.add('completed');
-            }
-            const currEnd = document.getElementById('current-response');
-            if (currEnd) {
+            const activeBox = document.querySelector('.response-box:not(.completed)');
+            if (activeBox) activeBox.classList.add('completed');
+            const activeContent = document.querySelector('.active-streaming');
+            if (activeContent) {
               const badge = document.createElement('div');
               badge.className = 'task-done-badge';
               badge.textContent = '✅ 任务完成';
-              currEnd.appendChild(badge);
-              currEnd.removeAttribute('id');
-            }
-            if (box) {
-              box.removeAttribute('id');
+              activeContent.appendChild(badge);
+              activeContent.classList.remove('active-streaming');
             }
             break;
         }
       });
 
+      function populateModels(models, selectedModel) {
+        const selects = [modelSelect, designModelSelect, implModelSelect];
+        selects.forEach(select => {
+          select.innerHTML = '';
+          if (!models || models.length === 0) {
+            select.innerHTML = '<option>未检测到可用模型</option>';
+            return;
+          }
+          models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            if (select === modelSelect && selectedModel && m === selectedModel) opt.selected = true;
+            if (select === designModelSelect && m.toLowerCase().includes('deepseek'))
+              opt.selected = true;
+            if (
+              select === implModelSelect &&
+              (m.toLowerCase().includes('coder') || m.toLowerCase().includes('qwen'))
+            )
+              opt.selected = true;
+            select.appendChild(opt);
+          });
+          if (select.selectedIndex === -1 && models.length > 0) select.selectedIndex = 0;
+        });
+      }
+
+      function showReviewButtons(historyId, reviewText, implModel, targetDiv) {
+        if (!targetDiv) return;
+        // 防止重复创建
+        if (targetDiv.querySelector('.action-buttons')) return;
+
+        const actionDiv = document.createElement('div');
+        actionDiv.className = 'action-buttons';
+        actionDiv.innerHTML = `
+          <button class="btn-accept" id="acceptReviewBtn-${historyId}">✅ 同意建议并修改代码</button>
+          <button class="btn-skip" id="skipReviewBtn-${historyId}">❌ 忽略并结束</button>
+        `;
+        targetDiv.appendChild(actionDiv);
+
+        document.getElementById(`acceptReviewBtn-${historyId}`).addEventListener('click', () => {
+          actionDiv.remove();
+          loadingIndicator.style.display = 'flex';
+          sendBtn.disabled = true;
+          vscode.postMessage({type: 'approveReview', historyId, reviewText, implModel});
+        });
+
+        document.getElementById(`skipReviewBtn-${historyId}`).addEventListener('click', () => {
+          actionDiv.remove();
+          const badge = document.createElement('div');
+          badge.className = 'task-done-badge';
+          badge.textContent = '✅ 审查完成 (已忽略修改)';
+          targetDiv.appendChild(badge);
+          sendBtn.disabled = false;
+        });
+
+        const container = document.getElementById('chat-container');
+        container.scrollTop = container.scrollHeight;
+      }
+
+      function renderSkillsList(skills) {
+        skillsListContainer.innerHTML = '';
+        activeSkillSelect.innerHTML = '<option value="">-- 不使用 Skill --</option>';
+
+        if (!skills || skills.length === 0) {
+          skillsListContainer.innerHTML =
+            '<div style="font-size: 11px; color: var(--vscode-descriptionForeground);">暂无自定义 Skill</div>';
+          return;
+        }
+
+        skills.forEach(skill => {
+          const opt = document.createElement('option');
+          opt.value = skill.content;
+          opt.textContent = skill.name;
+          activeSkillSelect.appendChild(opt);
+
+          const item = document.createElement('div');
+          item.className = 'skill-item';
+          item.innerHTML = `<span>⚡ ${skill.name}</span><button class="btn-refresh" style="padding: 2px 4px; font-size: 10px;" data-name="${skill.name}">删除</button>`;
+          item.querySelector('button').addEventListener('click', () => {
+            vscode.postMessage({type: 'deleteSkill', name: skill.name});
+          });
+          skillsListContainer.appendChild(item);
+        });
+      }
+
       function renderHistoryList(history) {
         responseArea.innerHTML = '';
-        // 每次重新渲染时重置全选框状态
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         history.forEach(item => {
@@ -525,13 +864,10 @@
           checkbox.type = 'checkbox';
           checkbox.className = 'history-checkbox';
           checkbox.dataset.id = item.id;
-
-          // 为单项复选框绑定点击联动，如果手动取消其中一个，可以使体验更完善
           checkbox.addEventListener('change', () => {
-            const allCheckboxes = document.querySelectorAll('.history-checkbox');
-            const checkedCheckboxes = document.querySelectorAll('.history-checkbox:checked');
-            selectAllCheckbox.checked =
-              allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+            const all = document.querySelectorAll('.history-checkbox');
+            const checked = document.querySelectorAll('.history-checkbox:checked');
+            selectAllCheckbox.checked = all.length > 0 && all.length === checked.length;
           });
 
           const userMsg = document.createElement('div');
@@ -544,7 +880,7 @@
 
           const details = document.createElement('details');
           details.className = 'response-box' + (item.completed ? ' completed' : '');
-          if (!item.completed) details.open = true;
+          if (!item.completed || item.reviewPending) details.open = true;
 
           const summary = document.createElement('summary');
           summary.className = 'response-summary';
@@ -552,7 +888,9 @@
           details.appendChild(summary);
 
           const contentDiv = document.createElement('div');
-          contentDiv.className = 'response-content';
+          contentDiv.className =
+            'response-content' +
+            (!item.completed && !item.reviewPending ? ' active-streaming' : '');
 
           let html = item.response || '';
           html = html.split('<think>').join('<div class="thinking">思考中...<br>');
@@ -564,9 +902,14 @@
             badge.className = 'task-done-badge';
             badge.textContent = '✅ 任务完成';
             contentDiv.appendChild(badge);
+          } else if (item.reviewPending) {
+            // 如果切走后切回，检测到处于 reviewPending 状态，自动重新挂载审查确认按钮
+            setTimeout(() => {
+              showReviewButtons(item.id, item.reviewText, item.model, contentDiv);
+            }, 50);
           } else {
-            contentDiv.id = 'current-response';
-            details.id = 'current-response-box';
+            // 未完成且非 reviewPending 的项赋予 active-streaming 用于接收流式数据
+            contentDiv.classList.add('active-streaming');
           }
 
           details.appendChild(contentDiv);

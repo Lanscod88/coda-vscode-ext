@@ -46,16 +46,7 @@
         "title": "API Configuration",
         "icon": "$(settings-gear)"
       }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "vscode-local-ai.openSettings",
-          "when": "view == ollamaChatView",
-          "group": "navigation"
-        }
-      ]
-    }
+    ]
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
