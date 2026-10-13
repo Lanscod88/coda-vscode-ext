@@ -99,6 +99,24 @@
         background: var(--vscode-button-secondaryHoverBackground);
       }
 
+      .history-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+      }
+      .select-all-label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        margin-bottom: 0 !important;
+      }
+
       /* Settings 标题与切换控制 */
       .settings-header {
         font-size: 13px;
@@ -146,20 +164,36 @@
         line-height: 1.4;
       }
 
+      .chat-item-wrapper {
+        margin-bottom: 12px;
+        border-bottom: 1px dashed var(--vscode-panel-border);
+        padding-bottom: 8px;
+      }
+      .chat-header-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+
       .user-msg {
-        margin-bottom: 6px;
         white-space: pre-wrap;
         word-break: break-all;
         color: var(--vscode-textLink-activeForeground);
         font-weight: bold;
       }
       .response-box {
-        margin-bottom: 14px;
         border: 1px solid var(--vscode-panel-border);
         border-radius: 4px;
         background: var(--vscode-editor-background);
         overflow: hidden;
+        transition: background-color 0.3s;
       }
+      .response-box.completed {
+        background-color: rgba(46, 160, 67, 0.12) !important;
+        border-color: rgba(46, 160, 67, 0.4);
+      }
+
       .response-summary {
         color: var(--vscode-editor-foreground);
         font-weight: bold;
@@ -189,6 +223,17 @@
         border-top: 1px solid var(--vscode-panel-border);
       }
 
+      .task-done-badge {
+        margin-top: 6px;
+        padding: 4px 8px;
+        background: rgba(46, 160, 67, 0.2);
+        color: var(--vscode-testing-iconPassed, #4caf50);
+        font-weight: bold;
+        font-size: 12px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+
       .thinking {
         color: var(--vscode-descriptionForeground);
         border-left: 2px solid var(--vscode-textBlockQuote-border);
@@ -216,6 +261,15 @@
           placeholder="输入你想编写的代码或问题... (Ctrl+Enter 发送)"
         ></textarea>
         <button id="sendBtn" class="primary-btn">发送</button>
+      </div>
+
+      <div class="history-toolbar">
+        <label class="select-all-label">
+          <input type="checkbox" id="selectAllCheckbox" /> 全选
+        </label>
+        <button id="deleteSelectedBtn" class="btn-refresh" style="padding: 2px 6px">
+          删除选中项
+        </button>
       </div>
 
       <div id="loadingIndicator">
@@ -297,6 +351,8 @@
       const sendBtn = document.getElementById('sendBtn');
       const responseArea = document.getElementById('responseArea');
       const loadingIndicator = document.getElementById('loadingIndicator');
+      const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+      const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
       let isSettingsOpen = false;
 
@@ -330,6 +386,7 @@
       window.addEventListener('load', () => {
         vscode.postMessage({type: 'getSettings'});
         vscode.postMessage({type: 'getModels'});
+        vscode.postMessage({type: 'getHistory'});
       });
 
       refreshBtn.addEventListener('click', () => {
@@ -354,27 +411,29 @@
         }
       });
 
+      // 全选/全取消逻辑
+      selectAllCheckbox.addEventListener('change', () => {
+        const checkboxes = document.querySelectorAll('.history-checkbox');
+        checkboxes.forEach(cb => {
+          cb.checked = selectAllCheckbox.checked;
+        });
+      });
+
+      deleteSelectedBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.history-checkbox:checked');
+        const ids = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
+        if (ids.length === 0) return;
+        vscode.postMessage({type: 'deleteHistory', ids});
+      });
+
       function sendMessage() {
         const prompt = promptInput.value.trim();
         const model = modelSelect.value;
         if (!prompt || !model) return;
 
         sendBtn.disabled = true;
-        responseArea.innerHTML +=
-          '<div class="message user-msg">用户: ' + escapeHtml(prompt) + '</div>';
-        responseArea.innerHTML +=
-          '<details class="response-box" open>' +
-          '<summary class="response-summary">模型回复 (' +
-          escapeHtml(model) +
-          ')</summary>' +
-          '<div class="response-content" id="current-response"></div>' +
-          '</details>';
-
         promptInput.value = '';
         loadingIndicator.style.display = 'flex';
-
-        const container = document.getElementById('chat-container');
-        container.scrollTop = container.scrollHeight;
 
         vscode.postMessage({type: 'sendMessage', prompt, model});
       }
@@ -411,6 +470,9 @@
               modelSelect.appendChild(opt);
             });
             break;
+          case 'renderHistory':
+            renderHistoryList(message.history);
+            break;
           case 'streamChunk':
             loadingIndicator.style.display = 'none';
             const curr = document.getElementById('current-response');
@@ -428,14 +490,92 @@
           case 'streamEnd':
             loadingIndicator.style.display = 'none';
             sendBtn.disabled = false;
+            const box = document.getElementById('current-response-box');
+            if (box) {
+              box.classList.add('completed');
+            }
             const currEnd = document.getElementById('current-response');
-            if (currEnd) currEnd.removeAttribute('id');
+            if (currEnd) {
+              const badge = document.createElement('div');
+              badge.className = 'task-done-badge';
+              badge.textContent = '✅ 任务完成';
+              currEnd.appendChild(badge);
+              currEnd.removeAttribute('id');
+            }
+            if (box) {
+              box.removeAttribute('id');
+            }
             break;
         }
       });
 
-      function escapeHtml(text) {
-        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      function renderHistoryList(history) {
+        responseArea.innerHTML = '';
+        // 每次重新渲染时重置全选框状态
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+        history.forEach(item => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'chat-item-wrapper';
+
+          const headerRow = document.createElement('div');
+          headerRow.className = 'chat-header-row';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'history-checkbox';
+          checkbox.dataset.id = item.id;
+
+          // 为单项复选框绑定点击联动，如果手动取消其中一个，可以使体验更完善
+          checkbox.addEventListener('change', () => {
+            const allCheckboxes = document.querySelectorAll('.history-checkbox');
+            const checkedCheckboxes = document.querySelectorAll('.history-checkbox:checked');
+            selectAllCheckbox.checked =
+              allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+          });
+
+          const userMsg = document.createElement('div');
+          userMsg.className = 'user-msg';
+          userMsg.textContent = '用户: ' + item.prompt;
+
+          headerRow.appendChild(checkbox);
+          headerRow.appendChild(userMsg);
+          wrapper.appendChild(headerRow);
+
+          const details = document.createElement('details');
+          details.className = 'response-box' + (item.completed ? ' completed' : '');
+          if (!item.completed) details.open = true;
+
+          const summary = document.createElement('summary');
+          summary.className = 'response-summary';
+          summary.textContent = '模型回复 (' + item.model + ')';
+          details.appendChild(summary);
+
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'response-content';
+
+          let html = item.response || '';
+          html = html.split('<think>').join('<div class="thinking">思考中...<br>');
+          html = html.split('</think>').join('</div><hr>');
+          contentDiv.innerHTML = html;
+
+          if (item.completed) {
+            const badge = document.createElement('div');
+            badge.className = 'task-done-badge';
+            badge.textContent = '✅ 任务完成';
+            contentDiv.appendChild(badge);
+          } else {
+            contentDiv.id = 'current-response';
+            details.id = 'current-response-box';
+          }
+
+          details.appendChild(contentDiv);
+          wrapper.appendChild(details);
+          responseArea.appendChild(wrapper);
+        });
+
+        const container = document.getElementById('chat-container');
+        container.scrollTop = container.scrollHeight;
       }
     </script>
   </body>

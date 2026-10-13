@@ -13,8 +13,16 @@ interface AISettings {
   numCtx: string;
 }
 
+interface ChatHistoryItem {
+  id: number;
+  prompt: string;
+  response: string;
+  model: string;
+  completed: boolean;
+}
+
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel.appendLine('VS Code Local AI 插件已激活 (具备文件读写 Agent 能力)');
+  outputChannel.appendLine('VS Code Local AI 插件已激活 (支持历史记录与 Agent 能力)');
   const provider = new AIChatViewProvider(context);
 
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('ollamaChatView', provider));
@@ -54,6 +62,12 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
         case 'getModels':
           await this.fetchAndSendModels();
           break;
+        case 'getHistory':
+          this.sendHistoryToWebview();
+          break;
+        case 'deleteHistory':
+          await this.deleteHistoryItems(data.ids);
+          break;
         case 'sendMessage':
           await this.handleAgentLoop(data.prompt, data.model);
           break;
@@ -90,6 +104,26 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
   private sendSettingsToWebview() {
     const settings = this.getStoredSettings();
     this._view?.webview.postMessage({type: 'loadSettings', settings});
+  }
+
+  private getStoredHistory(): ChatHistoryItem[] {
+    return this._context.workspaceState.get<ChatHistoryItem[]>('chatHistory') || [];
+  }
+
+  private async saveHistory(history: ChatHistoryItem[]) {
+    await this._context.workspaceState.update('chatHistory', history);
+  }
+
+  private sendHistoryToWebview() {
+    const history = this.getStoredHistory();
+    this._view?.webview.postMessage({type: 'renderHistory', history});
+  }
+
+  private async deleteHistoryItems(ids: number[]) {
+    let history = this.getStoredHistory();
+    history = history.filter(item => !ids.includes(item.id));
+    await this.saveHistory(history);
+    this.sendHistoryToWebview();
   }
 
   private async fetchAndSendModels() {
@@ -149,10 +183,8 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
       return '错误：当前未打开任何工作区文件夹 (Workspace)。请先在 VS Code 中通过 文件 -> 打开文件夹 打开一个项目。';
     }
 
-    // 核心优化：智能路径解析
     const resolvePath = (targetPath: string) => {
       if (!targetPath) return root;
-      // 如果传入的是绝对路径（带有盘符如 E:\ 或 / 开头），则直接使用；否则自动拼接当前工作区根目录
       return path.isAbsolute(targetPath) ? targetPath : path.join(root, targetPath);
     };
 
@@ -219,27 +251,37 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
       {role: 'user', content: prompt},
     ];
 
+    // 初始化并保存新的历史记录项
+    const history = this.getStoredHistory();
+    const newItem: ChatHistoryItem = {
+      id: Date.now(),
+      prompt: prompt,
+      response: '',
+      model: model,
+      completed: false,
+    };
+    history.push(newItem);
+    await this.saveHistory(history);
+    this.sendHistoryToWebview();
+
     let maxSteps = 5;
     let step = 0;
+    let fullResponseAccumulator = '';
 
     while (step < maxSteps) {
       step++;
       let assistantResponseText = '';
 
       if (settings.protocol === 'openai') {
-        assistantResponseText = await this.callOpenAIModel(messages, settings, model);
+        assistantResponseText = await this.callOpenAIModel(messages, settings, model, newItem.id);
       } else {
-        assistantResponseText = await this.callOllamaModel(messages, settings, model);
+        assistantResponseText = await this.callOllamaModel(messages, settings, model, newItem.id);
       }
 
-      // 实时记录原始回复到输出面板，方便调试
-      outputChannel.appendLine(`\n--- [Step ${step}] AI 原始回复 ---\n${assistantResponseText}`);
-
+      fullResponseAccumulator += assistantResponseText;
       messages.push({role: 'assistant', content: assistantResponseText});
 
-      // 增强版多重解析逻辑：兼容 Markdown 代码块、标签及纯 JSON
       let toolJsonStr = '';
-
       const tagMatch = assistantResponseText.match(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/);
       if (tagMatch) {
         toolJsonStr = tagMatch[1].trim();
@@ -267,22 +309,26 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
       if (toolJsonStr) {
         try {
           const toolCall = JSON.parse(toolJsonStr);
-          this._view?.webview.postMessage({
-            type: 'streamChunk',
-            chunk: `\n\n⚙️ **正在执行工具 [${toolCall.name}]**: \`${toolCall.arguments?.path || ''}\`\n\n`,
-          });
+          const toolChunk = `\n\n⚙️ **正在执行工具 [${toolCall.name}]**: \`${toolCall.arguments?.path || ''}\`\n\n`;
+          fullResponseAccumulator += toolChunk;
+          this._view?.webview.postMessage({type: 'streamChunk', chunk: toolChunk});
 
           const toolResult = await this.executeTool(toolCall.name, toolCall.arguments);
-
-          this._view?.webview.postMessage({
-            type: 'streamChunk',
-            chunk: `📥 **工具返回结果**:\n\`\`\`\n${toolResult.slice(0, 500)}${toolResult.length > 500 ? '\n...(内容已截断)' : ''}\n\`\`\`\n\n`,
-          });
+          const resultChunk = `📥 **工具返回结果**:\n\`\`\`\n${toolResult.slice(0, 500)}${toolResult.length > 500 ? '\n...(内容已截断)' : ''}\n\`\`\`\n\n`;
+          fullResponseAccumulator += resultChunk;
+          this._view?.webview.postMessage({type: 'streamChunk', chunk: resultChunk});
 
           messages.push({role: 'user', content: `[系统通知 - 工具执行结果]:\n${toolResult}`});
+
+          // 更新当前历史记录内容
+          const currentHistory = this.getStoredHistory();
+          const target = currentHistory.find(h => h.id === newItem.id);
+          if (target) {
+            target.response = fullResponseAccumulator;
+            await this.saveHistory(currentHistory);
+          }
           continue;
         } catch (e: any) {
-          outputChannel.appendLine(`[Tool Parse Error]: ${e.message} | JSON Str: ${toolJsonStr}`);
           messages.push({
             role: 'user',
             content: `[系统错误]: 工具 JSON 解析失败: ${e.message}。请确保输出合法的 JSON。`,
@@ -290,8 +336,17 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
           continue;
         }
       } else {
-        break; // 没有工具调用，对话结束
+        break;
       }
+    }
+
+    // 任务完成标记
+    const finalHistory = this.getStoredHistory();
+    const targetItem = finalHistory.find(h => h.id === newItem.id);
+    if (targetItem) {
+      targetItem.response = fullResponseAccumulator;
+      targetItem.completed = true;
+      await this.saveHistory(finalHistory);
     }
 
     this._view?.webview.postMessage({type: 'streamEnd'});
@@ -301,6 +356,7 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
     messages: any[],
     settings: AISettings,
     model: string,
+    historyId: number,
   ): Promise<string> {
     let host = (settings.baseUrl || '[http://127.0.0.1:11434](http://127.0.0.1:11434)')
       .replace('localhost', '127.0.0.1')
@@ -346,6 +402,15 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
         } catch (e) {}
       }
     }
+
+    // 实时同步单步文本到持久化存储
+    const history = this.getStoredHistory();
+    const item = history.find(h => h.id === historyId);
+    if (item) {
+      item.response += fullText;
+      await this.saveHistory(history);
+    }
+
     return fullText;
   }
 
@@ -353,9 +418,9 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
     messages: any[],
     settings: AISettings,
     model: string,
+    historyId: number,
   ): Promise<string> {
-    let baseUrl = settings.baseUrl || '[http://127.0.0.1:1234/v1';
-    // .replace(/](http://127.0.0.1:1234/v1').replace(/)\/$/, '');
+    let baseUrl = (settings.baseUrl || 'http://127.0.0.1:1234/v1').replace(/\/$/, '');
     const headers: Record<string, string> = {'Content-Type': 'application/json'};
     if (settings.apiKey) headers['Authorization'] = `Bearer ${settings.apiKey}`;
     const numCtxValue = this.parseNumCtx(settings.numCtx);
@@ -401,6 +466,14 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
         } catch (e) {}
       }
     }
+
+    const history = this.getStoredHistory();
+    const item = history.find(h => h.id === historyId);
+    if (item) {
+      item.response += fullText;
+      await this.saveHistory(history);
+    }
+
     return fullText;
   }
 
