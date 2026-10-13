@@ -228,39 +228,51 @@
       </div>
     </div>
 
-    <!-- 2. 设置界面 (Cline 风格) -->
+    <!-- 2. 设置界面 (多协议本地 AI 设置面板) -->
     <div id="settingsView" class="view-section">
       <div class="settings-header">
-        <span>API Configuration</span>
-        <button id="closeSettingsBtn" class="btn-refresh" style="padding: 2px 6px">Done</button>
+        <span>本地 / 内网 AI 服务配置</span>
+        <button id="closeSettingsBtn" class="btn-refresh" style="padding: 2px 6px">
+          关闭配置页
+        </button>
       </div>
 
       <div class="control-group">
-        <label>API Provider (服务提供商)</label>
-        <select id="providerSelect">
-          <option value="ollama">Ollama (本地)</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="gemini">Google Gemini</option>
-          <option value="openai">OpenAI / 兼容接口</option>
+        <label>服务协议 (Protocol)</label>
+        <select id="protocolSelect">
+          <option value="ollama">Ollama 协议原生</option>
+          <option value="openai">OpenAI 兼容协议 (LM Studio, vLLM, llama.cpp 等)</option>
         </select>
       </div>
 
       <div class="control-group">
-        <label>API Base URL (接口地址)</label>
+        <label>服务地址(Base URL)</label>
         <input
           type="text"
           id="baseUrlInput"
-          placeholder="例如: http://127.0.0.1:11434 或 https://api.deepseek.com"
+          placeholder="例如: http://127.0.0.1:11434 或 http://127.0.0.1:1234/v1"
+        />
+      </div>
+
+      <div class="control-group" id="apiKeyContainer">
+        <label>密钥(API Key,内网需要鉴权时填写)</label>
+        <input
+          type="password"
+          id="apiKeyInput"
+          placeholder="若服务器设置了 Bearer Token 请在此填写"
         />
       </div>
 
       <div class="control-group">
-        <label>API Key (密钥)</label>
-        <input
-          type="password"
-          id="apiKeyInput"
-          placeholder="请输入 API Key (Ollama 本地服务可留空)"
-        />
+        <label>上下文大小(Context Size)</label>
+        <select id="numCtxSelect">
+          <option value="8k">8K</option>
+          <option value="16k">16K</option>
+          <option value="32k" selected>32K</option>
+          <option value="64k">64K</option>
+          <option value="128k">128K</option>
+          <option value="256k">256K</option>
+        </select>
       </div>
 
       <button id="saveSettingsBtn" class="primary-btn">保存配置</button>
@@ -273,9 +285,10 @@
       const settingsView = document.getElementById('settingsView');
       const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 
-      const providerSelect = document.getElementById('providerSelect');
+      const protocolSelect = document.getElementById('protocolSelect');
       const baseUrlInput = document.getElementById('baseUrlInput');
       const apiKeyInput = document.getElementById('apiKeyInput');
+      const numCtxSelect = document.getElementById('numCtxSelect');
       const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
       const modelSelect = document.getElementById('modelSelect');
@@ -302,11 +315,16 @@
 
       closeSettingsBtn.addEventListener('click', () => toggleSettings(false));
 
-      providerSelect.addEventListener('change', () => {
-        const p = providerSelect.value;
-        if (p === 'ollama') baseUrlInput.value = 'http://127.0.0.1:11434';
-        if (p === 'deepseek') baseUrlInput.value = 'https://api.deepseek.com';
-        if (p === 'openai') baseUrlInput.value = 'https://api.openai.com/v1';
+      protocolSelect.addEventListener('change', () => {
+        if (protocolSelect.value === 'ollama') {
+          if (!baseUrlInput.value || baseUrlInput.value.includes('1234')) {
+            baseUrlInput.value = 'http://127.0.0.1:11434';
+          }
+        } else {
+          if (!baseUrlInput.value || baseUrlInput.value.includes('11434')) {
+            baseUrlInput.value = 'http://127.0.0.1:1234/v1';
+          }
+        }
       });
 
       window.addEventListener('load', () => {
@@ -321,9 +339,10 @@
 
       saveSettingsBtn.addEventListener('click', () => {
         const settings = {
-          provider: providerSelect.value,
+          protocol: protocolSelect.value,
           baseUrl: baseUrlInput.value.trim(),
           apiKey: apiKeyInput.value.trim(),
+          numCtx: numCtxSelect.value,
         };
         vscode.postMessage({type: 'saveSettings', settings});
       });
@@ -368,9 +387,10 @@
             break;
           case 'loadSettings':
             const s = message.settings;
-            providerSelect.value = s.provider || 'ollama';
-            baseUrlInput.value = s.baseUrl || '';
+            protocolSelect.value = s.protocol || 'ollama';
+            baseUrlInput.value = s.baseUrl || 'http://127.0.0.1:11434';
             apiKeyInput.value = s.apiKey || '';
+            numCtxSelect.value = s.numCtx || '32k';
             break;
           case 'settingsSaved':
             toggleSettings(false);

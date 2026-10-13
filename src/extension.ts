@@ -6,14 +6,15 @@ import * as path from 'path';
 const outputChannel = vscode.window.createOutputChannel('VS Code Local AI');
 
 interface AISettings {
-  provider: string;
+  protocol: 'ollama' | 'openai';
   baseUrl: string;
   apiKey: string;
   selectedModel?: string;
+  numCtx: string; // e.g. "32k"
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel.appendLine('VS Code Local AI 插件已激活');
+  outputChannel.appendLine('VS Code Local AI 插件已激活 (多协议本地引擎专版)');
   const provider = new AIChatViewProvider(context);
 
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('ollamaChatView', provider));
@@ -71,10 +72,11 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
 
   private getStoredSettings(): AISettings {
     const defaultSettings: AISettings = {
-      provider: 'ollama',
+      protocol: 'ollama',
       baseUrl: 'http://127.0.0.1:11434',
       apiKey: '',
       selectedModel: '',
+      numCtx: '32k',
     };
     const saved = this._context.globalState.get<AISettings>('aiSettings');
     return saved ? {...defaultSettings, ...saved} : defaultSettings;
@@ -84,8 +86,10 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
     const current = this.getStoredSettings();
     const merged = {...current, ...settings};
     await this._context.globalState.update('aiSettings', merged);
-    outputChannel.appendLine(`[Settings] 配置已保存: 提供商=${merged.provider}`);
-    vscode.window.showInformationMessage('AI 配置已成功保存！');
+    outputChannel.appendLine(
+      `[Settings] 本地 AI 配置已保存: 协议=${merged.protocol}, 地址=${merged.baseUrl}, 上下文=${merged.numCtx}`,
+    );
+    vscode.window.showInformationMessage('本地 AI 配置已成功保存！');
     this._view?.webview.postMessage({type: 'settingsSaved'});
   }
 
@@ -98,28 +102,35 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
     const settings = this.getStoredSettings();
     let models: string[] = [];
 
-    if (settings.provider === 'gemini') {
-      models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'];
-      this._view?.webview.postMessage({
-        type: 'modelList',
-        models,
-        selectedModel: settings.selectedModel || models[0],
-      });
-    } else if (settings.provider === 'deepseek') {
-      models = ['deepseek-chat', 'deepseek-reasoner'];
-      this._view?.webview.postMessage({
-        type: 'modelList',
-        models,
-        selectedModel: settings.selectedModel || models[0],
-      });
-    } else if (settings.provider === 'openai') {
-      models = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+    if (settings.protocol === 'openai') {
+      // 支持 LM Studio / vLLM / llama.cpp 的 /v1/models 接口
+      let baseUrl = settings.baseUrl || 'http://127.0.0.1:1234/v1';
+      baseUrl = baseUrl.replace(/\/$/, '');
+      const targetUrl = `${baseUrl}/models`;
+
+      try {
+        const headers: Record<string, string> = {};
+        if (settings.apiKey) {
+          headers['Authorization'] = `Bearer ${settings.apiKey}`;
+        }
+        const res = await fetch(targetUrl, {headers});
+        if (res.ok) {
+          const json: any = await res.json();
+          if (Array.isArray(json.data)) {
+            models = json.data.map((m: any) => m.id);
+          }
+        }
+      } catch (e) {
+        outputChannel.appendLine(`[Fetch Models] OpenAI 兼容接口拉取模型失败: ${e}`);
+      }
+
       this._view?.webview.postMessage({
         type: 'modelList',
         models,
         selectedModel: settings.selectedModel || models[0],
       });
     } else {
+      // Ollama 协议原生接口 /api/tags
       let host = settings.baseUrl || 'http://127.0.0.1:11434';
       host = host.replace('localhost', '127.0.0.1').replace(/\/$/, '');
       const targetUrl = `${host}/api/tags`;
@@ -155,137 +166,35 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
     settings.selectedModel = model;
     await this._context.globalState.update('aiSettings', settings);
 
-    outputChannel.appendLine(`[Chat] 使用 [${settings.provider}] 模型 (${model}) 发送请求...`);
+    outputChannel.appendLine(
+      `[Chat] 使用 [${settings.protocol}] 协议模型 (${model}) 发送请求，上下文: ${settings.numCtx}...`,
+    );
 
-    if (settings.provider === 'gemini') {
-      await this.streamGeminiResponse(prompt, settings, model);
-    } else if (settings.provider === 'deepseek' || settings.provider === 'openai') {
+    if (settings.protocol === 'openai') {
       await this.streamOpenAICompatibleResponse(prompt, settings, model);
     } else {
       await this.streamOllamaResponse(prompt, settings, model);
     }
   }
 
-  private async streamGeminiResponse(prompt: string, settings: AISettings, model: string) {
-    if (!settings.apiKey) {
-      vscode.window.showErrorMessage('请先在插件设置中填写 Gemini API Key');
-      this._view?.webview.postMessage({type: 'streamEnd'});
-      return;
-    }
-    // const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${settings.apiKey}`;
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:streamGenerateContent?alt=sse&key=${settings.apiKey}`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({contents: [{parts: [{text: prompt}]}]}),
-      });
-
-      if (!response.ok || !response.body) {
-        const errorBody = await response.text();
-        outputChannel.appendLine(`[Chat] Gemini 详细错误响应: ${errorBody}`);
-        throw new Error(`Gemini API 错误 (${response.status}): ${errorBody}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, {stream: true});
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-          try {
-            const json = JSON.parse(trimmed.replace(/^data:\s*/, ''));
-            const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (text) {
-              this._view?.webview.postMessage({type: 'streamChunk', chunk: text});
-            }
-          } catch (e) {}
-        }
-      }
-      this._view?.webview.postMessage({type: 'streamEnd'});
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`Gemini 请求失败: ${error.message}`);
-      this._view?.webview.postMessage({type: 'streamEnd'});
-    }
-  }
-
-  private async streamOpenAICompatibleResponse(
-    prompt: string,
-    settings: AISettings,
-    model: string,
-  ) {
-    if (!settings.apiKey) {
-      vscode.window.showErrorMessage('请先在插件设置中填写 API Key');
-      this._view?.webview.postMessage({type: 'streamEnd'});
-      return;
-    }
-    let baseUrl =
-      settings.baseUrl ||
-      (settings.provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com/v1');
-    baseUrl = baseUrl.replace(/\/$/, '');
-    const url = `${baseUrl}/chat/completions`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [{role: 'user', content: prompt}],
-          stream: true,
-        }),
-      });
-
-      if (!response.ok || !response.body) throw new Error(`API 错误: ${response.status}`);
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, {stream: true});
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-          const dataStr = trimmed.replace(/^data:\s*/, '');
-          if (dataStr === '[DONE]') continue;
-
-          try {
-            const json = JSON.parse(dataStr);
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) {
-              this._view?.webview.postMessage({type: 'streamChunk', chunk: content});
-            }
-          } catch (e) {}
-        }
-      }
-      this._view?.webview.postMessage({type: 'streamEnd'});
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`请求失败: ${error.message}`);
-      this._view?.webview.postMessage({type: 'streamEnd'});
-    }
+  private parseNumCtx(numCtxStr: string): number {
+    const map: {[key: string]: number} = {
+      '8k': 8192,
+      '16k': 16384,
+      '32k': 32768,
+      '64k': 65536,
+      '128k': 131072,
+      '256k': 262144,
+    };
+    return map[numCtxStr] || 32768;
   }
 
   private async streamOllamaResponse(prompt: string, settings: AISettings, model: string) {
     let host = settings.baseUrl || 'http://127.0.0.1:11434';
     host = host.replace('localhost', '127.0.0.1').replace(/\/$/, '');
     const targetUrl = `${host}/api/chat`;
+
+    const numCtxValue = this.parseNumCtx(settings.numCtx);
 
     try {
       const response = await fetch(targetUrl, {
@@ -295,6 +204,9 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
           model: model,
           messages: [{role: 'user', content: prompt}],
           stream: true,
+          options: {
+            num_ctx: numCtxValue,
+          },
         }),
       });
 
@@ -326,6 +238,69 @@ class AIChatViewProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({type: 'streamEnd'});
     } catch (error: any) {
       vscode.window.showErrorMessage(`Ollama 请求失败: ${error.message}`);
+      this._view?.webview.postMessage({type: 'streamEnd'});
+    }
+  }
+
+  private async streamOpenAICompatibleResponse(
+    prompt: string,
+    settings: AISettings,
+    model: string,
+  ) {
+    let baseUrl = settings.baseUrl || 'http://127.0.0.1:1234/v1';
+    baseUrl = baseUrl.replace(/\/$/, '');
+    const url = `${baseUrl}/chat/completions`;
+
+    const headers: Record<string, string> = {'Content-Type': 'application/json'};
+    if (settings.apiKey) {
+      headers['Authorization'] = `Bearer ${settings.apiKey}`;
+    }
+
+    const numCtxValue = this.parseNumCtx(settings.numCtx);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model,
+          messages: [{role: 'user', content: prompt}],
+          stream: true,
+          max_tokens: numCtxValue, // 通用参数
+        }),
+      });
+
+      if (!response.ok || !response.body) throw new Error(`请求失败，状态码: ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const dataStr = trimmed.replace(/^data:\s*/, '');
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const json = JSON.parse(dataStr);
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) {
+              this._view?.webview.postMessage({type: 'streamChunk', chunk: content});
+            }
+          } catch (e) {}
+        }
+      }
+      this._view?.webview.postMessage({type: 'streamEnd'});
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`请求失败: ${error.message}`);
       this._view?.webview.postMessage({type: 'streamEnd'});
     }
   }
