@@ -1,8 +1,20 @@
 {
   "name": "vscode-local-ai",
   "displayName": "VS Code Local AI",
-  "description": "一款vscode扩展程序，支持本地电脑部署和内网部署模型调用，支持调用Ollama/LM Studio/vLLM等部署的模型。",
+  "description": "一款vscode扩展程序，支持本地电脑部署和内网部署模型调用，具备类似Cline的文件读写和代码编写能力。",
   "version": "1.0.0",
+  "scripts": {
+    "test": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package -o ./dist/"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lanscod88/vscode-local-ai.git"
+  },
+  "readme": "README.md",
   "engines": {
     "vscode": "^1.140.0"
   },
@@ -44,11 +56,6 @@
         }
       ]
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
