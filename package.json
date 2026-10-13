@@ -1,7 +1,7 @@
 {
   "name": "vscode-local-ai",
   "displayName": "VS Code Local AI",
-  "description": "VS Code extension for local Ollama models with thinking process streaming",
+  "description": "一款vscode扩展程序，支持本地电脑部署和内网部署模型调用，支持调用Ollama/LM Studio/vLLM等部署的模型。",
   "version": "1.0.0",
   "engines": {
     "vscode": "^1.140.0"
