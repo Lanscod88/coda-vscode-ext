@@ -6,8 +6,7 @@
   "engines": {
     "vscode": "^1.140.0"
   },
-  "activationEvents": [
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -20,7 +19,7 @@
       ]
     },
     "views": {
-     "local-ai-sidebar": [
+      "local-ai-sidebar": [
         {
           "type": "webview",
           "id": "ollamaChatView",
@@ -29,20 +28,21 @@
         }
       ]
     },
-    "configuration": {
-      "title": "Ollama Assistant",
-      "properties": {
-        "ollamaAssistant.host": {
-          "type": "string",
-          "default": "http://localhost:11434",
-          "description": "Ollama server URL"
-        },
-        "ollamaAssistant.defaultModel": {
-          "type": "string",
-          "default": "deepseek-r1:32b",
-          "description": "Default model to use"
-        }
+    "commands": [
+      {
+        "command": "vscode-local-ai.openSettings",
+        "title": "API Configuration",
+        "icon": "$(settings-gear)"
       }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "vscode-local-ai.openSettings",
+          "when": "view == ollamaChatView",
+          "group": "navigation"
+        }
+      ]
     }
   },
   "scripts": {
