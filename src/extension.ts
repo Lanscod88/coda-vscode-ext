@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('ollamaChatView', provider));
   context.subscriptions.push(
-    vscode.commands.registerCommand('vscode-local-ai.openSettings', () => {
+    vscode.commands.registerCommand('coda-vscode-ext.openSettings', () => {
       provider.toggleSettingsView();
     }),
   );

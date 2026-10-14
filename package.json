@@ -1,17 +1,17 @@
 {
-  "name": "vscode-local-ai",
+  "name": "coda-vscode-ext",
   "displayName": "VS Code Local AI",
   "description": "一款vscode扩展程序，支持本地电脑部署和内网部署模型调用，具备类似Cline的文件读写和代码编写能力。",
-  "version": "1.0.0",
+  "version": "0.0.10",
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p .",
-    "package": "vsce package -o ./dist/"
+    "package": "vsce package -o ./extension-package/"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Lanscod88/vscode-local-ai.git"
+    "url": "https://github.com/Lanscod88/coda-vscode-ext.git"
   },
   "readme": "README.md",
   "engines": {

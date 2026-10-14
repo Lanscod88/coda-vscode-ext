@@ -1,10 +1,10 @@
-# VS Code Local AI
+# Coda-VSCode-Ext
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]()
 [![VS Code Version](https://img.shields.io/badge/VS%20Code-%5E1.140.0-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)]()
 
-**VS Code Local AI** 是一款专为本地与内网部署大模型打造的 VS Code 编程助手扩展。通过工程化、智能化的集成方案，支持**单模型一体化审查/编码**与**多模型协作（架构规划 + 代码实现）**，配合 MCP 工具协议与自定义 Skills 规则，全面提升工程开发效率与代码质量。
+**Coda-VSCode-Ext** 是一款专为本地与内网部署大模型打造的 VS Code 编程助手扩展。通过工程化、智能化的集成方案，支持**单模型一体化审查/编码**与**多模型协作（架构规划 + 代码实现）**，配合 MCP 工具协议与自定义 Skills 规则，全面提升工程开发效率与代码质量。
 
 ---
 
@@ -25,6 +25,7 @@
 本项目采用清晰的**模块化高内聚设计**，各核心模块职责如下：
 
 ```text
+extension-package/          #vscode插件构建后的安装包
 resources/
 ├── icon.svg                # 插件图标
 ├── webview.html            # 插件交互界面结构
@@ -102,4 +103,4 @@ npm run package
 
 上下文大小：建议设置为 32K 或更高以获得更好的长上下文代码阅读体验
 
-📄**License**: [ISC](LICENSE)
+📄**License**: [MIT](LICENSE)
