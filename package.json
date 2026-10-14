@@ -4,7 +4,6 @@
   "description": "一款vscode扩展程序，支持本地电脑部署和内网部署模型调用，具备类似Cline的文件读写和代码编写能力。",
   "version": "1.0.0",
   "scripts": {
-    "test": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p .",
     "package": "vsce package -o ./dist/"
